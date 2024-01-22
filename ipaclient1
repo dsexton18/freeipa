@@ -1,0 +1,87 @@
+---
+- name: Ensure IPA Client is Configured
+  hosts: ipaclients
+  become: true
+  vars:
+    desired_domain: lnx.corp.lan
+    ipa_domain: "{{ desired_domain }}"
+    ipaclient_no_ntp: true
+    ansible_python_interpreter: /usr/bin/python3
+    chrony_servers:
+      - 10.10.240.1
+      - 10.10.240.2
+
+  tasks:
+    - name: Check DNS record using community.dns.lookup
+      set_fact:
+        dns_record: "{{ lookup('community.dns.lookup', ansible_hostname + '.' + ipa_domain) | default([]) | first }}"
+      ignore_errors: true
+
+    - name: Debug - Show DNS record result
+      debug:
+        var: dns_record
+
+    - name: Get current DNS domain
+      set_fact:
+        current_domain: "{{ dns_record | default('') | regex_replace('.*\\.(.*)\\..*$', '\\1') | lower | default('') }}"
+    
+    - name: Debug - Show current DNS domain
+      debug:
+        var: current_domain
+
+    - name: Prompt to change hostname if needed
+      when: dns_record is not defined or dns_record | default([]) == [] or current_domain != ipa_domain
+      block:
+        - name: Prompt to change hostname
+          ansible.builtin.pause:
+            prompt: "Hostname does not have a DNS record or the domain does not match lnx.corp.lan. Do you want to change it? (y/n)"
+          register: change_hostname
+
+        - name: Debug - Show user input after prompt
+          debug:
+            var: change_hostname.user_input
+
+        - name: Change hostname if user agrees
+          command: hostnamectl set-hostname "{{ ansible_hostname }}.{{ desired_domain }}"
+          when: change_hostname.user_input | lower == 'y'
+          check_mode: no
+
+    - name: Include IPA Client role
+      include_role:
+        name: ipaclient
+
+    - name: Install chrony
+      ansible.builtin.package:
+        name: chrony
+        state: present
+
+    - name: Configure chrony servers
+      ansible.builtin.lineinfile:
+        path: /etc/chrony.conf
+        line: "server {{ item }} iburst"
+      with_items: "{{ chrony_servers }}"
+      notify: restart chrony
+
+    - name: Install autofs
+      ansible.builtin.package:
+        name: autofs
+        state: present
+
+    - name: Configure autofs
+      ansible.builtin.copy:
+        content: |
+          /net    -hosts
+          /misc   /etc/auto.misc
+        dest: /etc/auto.master
+      notify: restart autofs
+
+  handlers:
+    - name: restart chrony
+      ansible.builtin.service:
+        name: chrony
+        state: restarted
+
+    - name: restart autofs
+      ansible.builtin.service:
+        name: autofs
+        state: restarted
