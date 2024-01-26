@@ -3,7 +3,7 @@
   hosts: ipaclients
   become: true
   vars:
-    desired_domain: lnx.corp.lan
+    desired_domain: lnx.foo.lan
     ipa_domain: "{{ desired_domain }}"
     ipaclient_no_ntp: true
     ansible_python_interpreter: /usr/bin/python3
