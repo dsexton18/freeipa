@@ -82,3 +82,27 @@ cockpit_cert: "/etc/pki/tls/certs/{{ ansible_hostname }}.crt"
 cockpit_private_key: "/etc/pki/tls/private/{{ ansible_hostname }}.key"
 
 
+
+dnsrecord role
+tasks main
+---
+- name: Create DNS record in IdM
+  redhat.rhel_idm.ipadnsrecord:
+    ipaadmin_password: "{{ ipaadmin_password }}"
+    zone_name: "{{ item.zonename }}"
+    name: "{{ item.hostname }}"
+    record_type: "{{ item.recordtype }}"
+    record_value: "{{ item.recordvalue }}"
+    state: present
+  loop: "{{ records }}"
+
+
+defaults
+  ---
+records:
+  - hostname: foohost
+    zonename: example.com
+    recordtype: A
+    recordvalue: 127.0.0.1
+
+
