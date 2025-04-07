@@ -1,0 +1,84 @@
+---
+- hosts: all
+  roles:
+    - linux-system-roles.certificate
+  vars:
+    certificate_requests:
+      - name: "{{ ansible_hostname }}"
+        dns: "{{ ansible_fqdn }}"
+        principal: "HTTP/{{ ansible_fqdn }}@example.com"
+        ca: ipa
+
+
+---
+- name: Issue host certificate from IDM
+  hosts: all
+  become: true
+  roles:
+    - redhat.rhel_system_roles.certificate
+
+
+---
+- name: Create DNS record in IdM
+  hosts: ipaserver
+  gather_facts: false
+  vars_prompt:
+    - name: ipaadmin_principal
+      prompt: What is the Admin user to connect host to IdM?
+      private: false
+
+    - name: ipaadmin_password
+      prompt: What is the password for the Admin user account?
+      private: true
+      unsafe: true
+  roles:
+    - dnsrecord
+
+---
+- name: Setup Cockpit
+  hosts: desktop
+  become: true
+  roles:
+    - redhat.rhel_system_roles.cockpit
+
+  post_tasks:
+    - name: Install Redis software for PCP
+      ansible.builtin.package:
+        name: redis
+        state: present
+    - name: Enable pmlogger service
+      ansible.builtin.service:
+        name: pmlogger
+        enabled: true
+        state: started
+    - name: Enable pmproxy service
+      ansible.builtin.service:
+        name: pmproxy
+        enabled: true
+        state: started
+
+
+---
+ipaclient_domain: example.com
+ipaclient_mkhomedir: true
+ipaclient_configure_firefox: true
+ipaclient_enable_dns_updates: true
+ipaclient_automount_location: default
+
+certificate_requests:
+  - name: "{{ ansible_hostname }}"
+    dns: "{{ ansible_fqdn }}"
+    ca: ipa
+    ip: "{{ ansible_default_ipv4['address'] }}"
+    principal: "HTTP/{{ ansible_fqdn }}@{{ ansible_domain | upper }}"
+
+cockpit_packages: full
+cockpit_enabled: true
+cockpit_started: true
+cockpit_port: 19090
+cockpit_manage_firewall: true
+cockpit_manage_selinux: true
+cockpit_cert: "/etc/pki/tls/certs/{{ ansible_hostname }}.crt"
+cockpit_private_key: "/etc/pki/tls/private/{{ ansible_hostname }}.key"
+
+
