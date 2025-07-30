@@ -1,0 +1,11 @@
+---
+- hosts: all
+  roles:
+    #    - rhel-system-roles.certificate
+    - linux-system-roles.certificate
+  vars:
+    certificate_requests:
+      - name: "{{ ansible_hostname }}"
+        dns: "{{ ansible_fqdn }}"
+        principal: "HTTP/{{ ansible_fqdn }}@{{ ipa_realm }}"
+        ca: ipa
