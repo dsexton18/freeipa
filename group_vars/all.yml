@@ -1,0 +1,2 @@
+group_vars/all.yml
+ipa_realm: FOO.COM
